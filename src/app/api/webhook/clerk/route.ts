@@ -50,55 +50,58 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const { id } = evt.data;
   const eventType = evt.type;
+  const userData = evt.data;
 
-  console.log(`Webhook with an ID of ${id} and type of ${eventType}`);
-  console.log("Webhook body:", body);
+  console.log(`🔥 Webhook received: ${eventType}`);
+  console.log("📄 User data:", JSON.stringify(userData, null, 2));
 
   // Handle the webhook
   try {
     switch (eventType) {
       case "user.created":
-        await handleUserCreated(evt.data);
+        await handleUserCreated(userData);
         break;
       case "user.updated":
-        await handleUserUpdated(evt.data);
+        await handleUserUpdated(userData);
         break;
       case "user.deleted":
-        await handleUserDeleted(evt.data);
+        await handleUserDeleted(userData);
         break;
       default:
-        console.log(`Unhandled webhook type: ${eventType}`);
+        console.log(`❓ Unhandled webhook type: ${eventType}`);
     }
 
     return NextResponse.json({ message: "Webhook processed successfully" });
   } catch (error) {
-    console.error("Error processing webhook:", error);
+    console.error("❌ Error processing webhook:", error);
     return new Response("Error processing webhook", { status: 500 });
   }
 }
 
 async function handleUserCreated(userData: any) {
   try {
-    console.log("Creating user:", userData);
+    console.log("👤 Creating user in database...");
 
-    // Extract user data from Clerk
+    // Extract user data from Clerk payload
     const {
       id: clerkId,
       email_addresses,
       phone_numbers,
       first_name,
       last_name,
-      image_url,
+      primary_email_address_id,
+      primary_phone_number_id,
     } = userData;
 
-    // Get primary email and phone
-    const primaryEmail = email_addresses.find(
-      (email: any) => email.id === userData.primary_email_address_id
+    // Get primary email
+    const primaryEmail = email_addresses?.find(
+      (email: any) => email.id === primary_email_address_id
     );
-    const primaryPhone = phone_numbers.find(
-      (phone: any) => phone.id === userData.primary_phone_number_id
+
+    // Get primary phone
+    const primaryPhone = phone_numbers?.find(
+      (phone: any) => phone.id === primary_phone_number_id
     );
 
     // Create user name
@@ -109,6 +112,8 @@ async function handleUserCreated(userData: any) {
       data: {},
     });
 
+    console.log("🛒 Cart created with ID:", cart.id);
+
     // Create user in database
     const user = await prisma.user.create({
       data: {
@@ -118,19 +123,27 @@ async function handleUserCreated(userData: any) {
         name,
         cartId: cart.id,
         onboarded: false, // User will need to complete onboarding
+        role: "user",
       },
     });
 
-    console.log("User created successfully:", user);
+    console.log("✅ User created successfully:", {
+      id: user.id,
+      clerkId: user.clerkId,
+      email: user.email,
+      phone: user.phone,
+      name: user.name,
+      cartId: user.cartId,
+    });
   } catch (error) {
-    console.error("Error creating user:", error);
+    console.error("❌ Error creating user:", error);
     throw error;
   }
 }
 
 async function handleUserUpdated(userData: any) {
   try {
-    console.log("Updating user:", userData);
+    console.log("📝 Updating user in database...");
 
     const {
       id: clerkId,
@@ -138,14 +151,18 @@ async function handleUserUpdated(userData: any) {
       phone_numbers,
       first_name,
       last_name,
+      primary_email_address_id,
+      primary_phone_number_id,
     } = userData;
 
-    // Get primary email and phone
-    const primaryEmail = email_addresses.find(
-      (email: any) => email.id === userData.primary_email_address_id
+    // Get primary email
+    const primaryEmail = email_addresses?.find(
+      (email: any) => email.id === primary_email_address_id
     );
-    const primaryPhone = phone_numbers.find(
-      (phone: any) => phone.id === userData.primary_phone_number_id
+
+    // Get primary phone
+    const primaryPhone = phone_numbers?.find(
+      (phone: any) => phone.id === primary_phone_number_id
     );
 
     // Create user name
@@ -166,20 +183,21 @@ async function handleUserUpdated(userData: any) {
           name,
         },
       });
-      console.log("User updated successfully");
+      console.log("✅ User updated successfully");
     } else {
       // User doesn't exist, create them (fallback)
+      console.log("👤 User not found, creating...");
       await handleUserCreated(userData);
     }
   } catch (error) {
-    console.error("Error updating user:", error);
+    console.error("❌ Error updating user:", error);
     throw error;
   }
 }
 
 async function handleUserDeleted(userData: any) {
   try {
-    console.log("Deleting user:", userData);
+    console.log("🗑️ Deleting user from database...");
 
     const { id: clerkId } = userData;
 
@@ -188,9 +206,9 @@ async function handleUserDeleted(userData: any) {
       where: { clerkId },
     });
 
-    console.log("User deleted successfully");
+    console.log("✅ User deleted successfully");
   } catch (error) {
-    console.error("Error deleting user:", error);
+    console.error("❌ Error deleting user:", error);
     // Don't throw error for deletion as user might not exist in our DB
   }
 }
