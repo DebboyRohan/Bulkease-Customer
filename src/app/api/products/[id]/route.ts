@@ -5,10 +5,11 @@ import { getProductByIdPublic } from "@/lib/db/products";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const product = await getProductByIdPublic(await params.id);
+    const { id } = await params;
+    const product = await getProductByIdPublic(id);
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
