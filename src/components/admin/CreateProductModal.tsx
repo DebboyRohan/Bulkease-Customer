@@ -22,18 +22,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, Minus, Upload, X, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
+// Fixed Zod schemas with proper number coercion
 const priceRangeSchema = z.object({
-  minQuantity: z.coerce.number().min(1, "Minimum quantity must be at least 1"),
-  maxQuantity: z.coerce.number().optional().nullable(),
-  pricePerUnit: z.coerce.number().min(0.01, "Price must be greater than 0"),
+  minQuantity: z.number().min(1, "Minimum quantity must be at least 1"),
+  maxQuantity: z.number().nullable().optional(),
+  pricePerUnit: z.number().min(0.01, "Price must be greater than 0"),
 });
 
 const variantSchema = z.object({
   name: z.string().min(1, "Variant name is required"),
-  bookingAmount: z.coerce
-    .number()
-    .min(0.01, "Booking amount must be greater than 0"),
-  images: z.array(z.string()).default([]),
+  bookingAmount: z.number().min(0.01, "Booking amount must be greater than 0"),
+  images: z.array(z.string()),
   priceRanges: z
     .array(priceRangeSchema)
     .min(1, "At least one price range is required"),
@@ -46,8 +45,8 @@ const productSchema = z
       .min(1, "Product name is required")
       .max(255, "Name is too long"),
     description: z.string().optional(),
-    images: z.array(z.string()).default([]),
-    bookingAmount: z.coerce.number().optional().nullable(),
+    images: z.array(z.string()),
+    bookingAmount: z.number().nullable().optional(),
     hasVariants: z.boolean(),
     variants: z.array(variantSchema).optional(),
     priceRanges: z.array(priceRangeSchema).optional(),
@@ -60,7 +59,6 @@ const productSchema = z
           message: "At least one variant is required when variants are enabled",
           path: ["variants"],
         });
-        return;
       }
       if (data.bookingAmount !== null && data.bookingAmount !== undefined) {
         ctx.addIssue({
@@ -111,7 +109,7 @@ export function CreateProductModal({
       priceRanges: [{ minQuantity: 1, maxQuantity: null, pricePerUnit: 0 }],
       name: "",
       description: "",
-      bookingAmount: 0,
+      bookingAmount: null,
       images: [],
     },
     mode: "onChange",
@@ -220,74 +218,34 @@ export function CreateProductModal({
     setLoading(true);
 
     try {
-      const formValues = getValues();
-
-      // Create the payload with proper typing
-      const payload: {
-        name: string;
-        description: string;
-        hasVariants: boolean;
-        images?: string[];
-        bookingAmount?: number | null;
-        variants?: Array<{
-          name: string;
-          bookingAmount: number;
-          images: string[];
-          priceRanges: Array<{
-            minQuantity: number;
-            maxQuantity: number | null;
-            pricePerUnit: number;
-          }>;
-        }>;
-        priceRanges?: Array<{
-          minQuantity: number;
-          maxQuantity: number | null;
-          pricePerUnit: number;
-        }>;
-      } = {
-        name: formValues.name.trim(),
-        description: formValues.description?.trim() || "",
-        hasVariants: formValues.hasVariants,
+      const payload = {
+        name: data.name.trim(),
+        description: data.description?.trim() || "",
+        hasVariants: data.hasVariants,
+        images: data.hasVariants ? [] : productImageUrls,
+        bookingAmount: data.hasVariants ? null : data.bookingAmount,
+        variants: data.hasVariants
+          ? data.variants?.map((variant) => ({
+              name: variant.name.trim(),
+              bookingAmount: variant.bookingAmount,
+              images: variant.images || [],
+              priceRanges: variant.priceRanges.map((pr) => ({
+                minQuantity: pr.minQuantity,
+                maxQuantity:
+                  pr.maxQuantity && pr.maxQuantity > 0 ? pr.maxQuantity : null,
+                pricePerUnit: pr.pricePerUnit,
+              })),
+            }))
+          : undefined,
+        priceRanges: !data.hasVariants
+          ? data.priceRanges?.map((pr) => ({
+              minQuantity: pr.minQuantity,
+              maxQuantity:
+                pr.maxQuantity && pr.maxQuantity > 0 ? pr.maxQuantity : null,
+              pricePerUnit: pr.pricePerUnit,
+            }))
+          : undefined,
       };
-
-      if (formValues.hasVariants) {
-        payload.images = [];
-        payload.bookingAmount = null;
-
-        if (!formValues.variants || formValues.variants.length === 0) {
-          throw new Error("At least one variant is required");
-        }
-
-        payload.variants = formValues.variants.map((variant) => ({
-          name: variant.name.trim(),
-          bookingAmount: Number(variant.bookingAmount),
-          images: variant.images || [],
-          priceRanges: variant.priceRanges.map((pr) => ({
-            minQuantity: Number(pr.minQuantity),
-            maxQuantity:
-              pr.maxQuantity && pr.maxQuantity > 0
-                ? Number(pr.maxQuantity)
-                : null,
-            pricePerUnit: Number(pr.pricePerUnit),
-          })),
-        }));
-      } else {
-        payload.images = productImageUrls;
-        payload.bookingAmount = Number(formValues.bookingAmount);
-
-        if (!formValues.priceRanges || formValues.priceRanges.length === 0) {
-          throw new Error("At least one price range is required");
-        }
-
-        payload.priceRanges = formValues.priceRanges.map((pr) => ({
-          minQuantity: Number(pr.minQuantity),
-          maxQuantity:
-            pr.maxQuantity && pr.maxQuantity > 0
-              ? Number(pr.maxQuantity)
-              : null,
-          pricePerUnit: Number(pr.pricePerUnit),
-        }));
-      }
 
       const response = await fetch("/api/admin/products", {
         method: "POST",
@@ -322,7 +280,7 @@ export function CreateProductModal({
         priceRanges: [{ minQuantity: 1, maxQuantity: null, pricePerUnit: 0 }],
         name: "",
         description: "",
-        bookingAmount: 0,
+        bookingAmount: null,
         images: [],
       });
       setProductImageUrls([]);
@@ -331,7 +289,7 @@ export function CreateProductModal({
   };
 
   // Child component for variant price ranges to avoid hooks issues
-  const VariantPriceRanges = ({ variantIndex }: { variantIndex: number }) => {
+  function VariantPriceRanges({ variantIndex }: { variantIndex: number }) {
     const {
       fields: priceRangeFields,
       append: appendPriceRange,
@@ -453,7 +411,7 @@ export function CreateProductModal({
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
