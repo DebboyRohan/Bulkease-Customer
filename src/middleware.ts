@@ -4,7 +4,12 @@ import { checkRole } from "./lib/roles";
 import { NextResponse } from "next/server";
 import { UserRound } from "lucide-react";
 
-const isPublicRoute = createRouteMatcher(["/", "/products(.*),/sign-in"]);
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/products(.*),/sign-in(.*)",
+  "/api/webhook(.*)",
+  "/api/products(.*)",
+]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isSalesRoute = createRouteMatcher(["/sales(.*)"]);
 export default clerkMiddleware(async (auth, req) => {
