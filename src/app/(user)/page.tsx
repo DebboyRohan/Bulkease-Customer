@@ -1,7 +1,15 @@
+// app/page.tsx
+
+import HeroSection from "@/components/home/HeroSection";
+import BenefitsSection from "@/components/home/BenefitsSection";
+import AboutSection from "@/components/home/AboutSection";
+
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      Home Page
-    </div>
+    <main className="overflow-hidden">
+      <HeroSection />
+      <BenefitsSection />
+      <AboutSection />
+    </main>
   );
 }

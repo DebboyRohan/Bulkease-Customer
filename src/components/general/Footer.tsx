@@ -1,5 +1,7 @@
 // components/Footer.tsx
 
+"use client";
+
 import Link from "next/link";
 import {
   MapPin,
@@ -10,125 +12,134 @@ import {
   Instagram,
   Linkedin,
 } from "lucide-react";
-import Image from "next/image";
+
+const socialLinks = [
+  {
+    name: "Facebook",
+    href: "https://facebook.com/bulkease",
+    icon: Facebook,
+    color: "hover:text-blue-600 hover:bg-blue-50",
+  },
+  {
+    name: "Twitter",
+    href: "https://twitter.com/bulkease",
+    icon: Twitter,
+    color: "hover:text-blue-400 hover:bg-blue-50",
+  },
+  {
+    name: "Instagram",
+    href: "https://instagram.com/bulkease",
+    icon: Instagram,
+    color: "hover:text-pink-600 hover:bg-pink-50",
+  },
+  {
+    name: "LinkedIn",
+    href: "https://linkedin.com/company/bulkease",
+    icon: Linkedin,
+    color: "hover:text-blue-700 hover:bg-blue-50",
+  },
+];
 
 export default function Footer() {
   return (
-    <footer className="bg-white border-gray-200">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-12">
-        {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-          {/* Left Section - Address and Contact Details */}
-          <div className="space-y-4 text-center md:text-left">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800">
-              Contact Us
-            </h3>
+    <footer className="bg-white border-t border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+          {/* Brand Section */}
+          <div className="text-center md:text-left">
+            <Link
+              href="/"
+              className="flex items-center gap-3 group justify-center md:justify-start"
+            >
+              <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
+                <span className="text-white font-bold">BE</span>
+              </div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                BulkEase
+              </span>
+            </Link>
 
-            {/* Address */}
+            <p className="text-gray-600 mt-3 text-sm leading-relaxed max-w-sm mx-auto md:mx-0">
+              Empowering students with collective buying power. Save money
+              through community group purchasing.
+            </p>
+          </div>
+
+          {/* Contact Info */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900 text-center md:text-left mb-4">
+              Contact Us
+            </h4>
+
             <div className="flex items-start gap-3 justify-center md:justify-start">
-              <MapPin className="w-5 h-5 mt-1 text-green-600 flex-shrink-0" />
-              <div className="text-gray-600">
-                <p>Azad Hall</p>
-                <p>IIT Kharagpur</p>
+              <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                <MapPin className="w-4 h-4 text-green-600" />
+              </div>
+              <div className="text-gray-600 text-sm">
+                <p className="font-medium">Azad Hall, IIT Kharagpur</p>
                 <p>Kharagpur, West Bengal, 721302</p>
               </div>
             </div>
 
-            {/* Phone */}
             <div className="flex items-center gap-3 justify-center md:justify-start">
-              <Phone className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Phone className="w-4 h-4 text-blue-600" />
+              </div>
               <a
                 href="tel:+919430071336"
-                className="text-gray-600 hover:text-green-600 transition-colors"
+                className="text-gray-600 hover:text-blue-600 transition-colors text-sm font-medium"
               >
                 +91 94300-71336
               </a>
             </div>
 
-            {/* Email */}
             <div className="flex items-center gap-3 justify-center md:justify-start">
-              <Mail className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Mail className="w-4 h-4 text-purple-600" />
+              </div>
               <a
                 href="mailto:thebulkease@gmail.com"
-                className="text-gray-600 hover:text-green-600 transition-colors"
+                className="text-gray-600 hover:text-purple-600 transition-colors text-sm font-medium"
               >
                 thebulkease@gmail.com
               </a>
             </div>
           </div>
 
-          {/* Middle Section - Logo */}
-          <div className="flex justify-center items-center order-first md:order-none">
-            <Link href="/" className="flex flex-col items-center gap-2">
-              <div className="rounded-lg flex items-center justify-center">
-                <Image
-                  src="/LogoWithoutBG.png"
-                  height={140}
-                  width={140}
-                  alt="Bulkease"
-                  className="hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-            </Link>
-          </div>
+          {/* Social Links */}
+          <div className="text-center md:text-right">
+            <h4 className="font-semibold text-gray-900 mb-4">Follow Us</h4>
 
-          {/* Right Section - Social Media */}
-          <div className="space-y-4 text-center md:text-right">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800">
-              Follow Us
-            </h3>
-
-            <div className="flex gap-3 justify-center md:justify-end">
-              <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-100 text-gray-600 rounded-full hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 shadow-sm hover:shadow-md"
-                aria-label="Facebook"
-              >
-                <Facebook className="w-5 h-5" />
-              </a>
-
-              <a
-                href="https://twitter.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-100 text-gray-600 rounded-full hover:bg-blue-50 hover:text-blue-400 transition-all duration-300 shadow-sm hover:shadow-md"
-                aria-label="Twitter"
-              >
-                <Twitter className="w-5 h-5" />
-              </a>
-
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-100 text-gray-600 rounded-full hover:bg-pink-50 hover:text-pink-600 transition-all duration-300 shadow-sm hover:shadow-md"
-                aria-label="Instagram"
-              >
-                <Instagram className="w-5 h-5" />
-              </a>
-
-              <a
-                href="https://linkedin.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3 bg-gray-100 text-gray-600 rounded-full hover:bg-blue-50 hover:text-blue-700 transition-all duration-300 shadow-sm hover:shadow-md"
-                aria-label="LinkedIn"
-              >
-                <Linkedin className="w-5 h-5" />
-              </a>
+            <div className="flex items-center gap-3 justify-center md:justify-end">
+              {socialLinks.map((social) => (
+                <a
+                  key={social.name}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`p-3 bg-gray-100 text-gray-600 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-md ${social.color}`}
+                  aria-label={social.name}
+                >
+                  <social.icon className="w-5 h-5" />
+                </a>
+              ))}
             </div>
+
+            <p className="text-gray-600 text-sm mt-4">
+              Connect with us for updates and exclusive deals
+            </p>
           </div>
         </div>
 
-        {/* Bottom Section - Copyright */}
-        <div className="border-t border-gray-200 mt-10 pt-8">
-          <p className="text-center text-gray-500 text-sm">
-            Copyright © 2025 |{" "}
-            <span className="text-green-600 font-medium">BulkEase</span>. All
-            rights reserved.
-          </p>
+        {/* Bottom Section */}
+        <div className="border-t border-gray-200 mt-8 pt-8">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center md:text-left">
+            <p className="text-gray-500 text-sm">
+              © 2025{" "}
+              <span className="font-semibold text-green-600">BulkEase</span>.
+              All rights reserved.
+            </p>
+          </div>
         </div>
       </div>
     </footer>
