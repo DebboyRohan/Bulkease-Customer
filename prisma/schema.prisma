@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  admin
+  sales
+  user
+}
+
+enum Hall {
+  ABV
+  Azad
+  BCRoy
+  BRH
+  Gokhale
+  HJB
+  JCB
+  Nehru
+  LBS
+  LLR
+  MMM
+  MS
+  MT
+  SNVH
+  PDFBlock
+  Patel
+  RK
+  RaniLaxmiBai
+  RP
+  SAM
+  SBP1
+  SBP2
+  SNIG
+  VSRC1
+  VSRC2
+  VidyaSagar
+  ZakirHussain
+  Radar
+}
+
+enum OrderStatus {
+  BOOKED
+  CANCELLED
+  REFUNDED
+  DELIVERED
+}
+
+model User {
+  id          String    @id @default(uuid())
+  clerkId     String    @unique
+  role        Role      @default(user)
+  email       String?   @unique
+  phone       String?   @unique
+  roll        String?   @unique
+  hall        Hall?
+  name        String?
+  onboarded   Boolean   @default(false)
+  
+  // Relations
+  cart        Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId      String    @unique
+  orders      Order[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clerkId])
+  @@index([email])
+  @@index([phone])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  user      User?
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String?
+  variantId String?
+  quantity  Int
+
+  // Relations
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
+  variant   Variant? @relation(fields: [variantId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId, variantId])
+  @@index([cartId])
+}
+
+model Product {
+  id            String    @id @default(uuid())
+  name          String    @unique
+  description   String?
+  images        String[]         // No need for ? since it's an array (can be empty)
+  bookingAmount Decimal?         // Nullable; required if hasVariants = false
+  hasVariants   Boolean   @default(false)
+
+  variants      Variant[]
+  priceRanges   PriceRange[]     // Only used when hasVariants = false
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([name])
+}
+
+model Variant {
+  id            String    @id @default(uuid())
+  productId     String
+  name          String
+  images        String[]          // Arrays can be empty, no need for nullable
+  bookingAmount Decimal           // Always required
+  priceRanges   PriceRange[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([productId, name])
+  @@index([productId])
+}
+
+
+model PriceRange {
+  id           String   @id @default(uuid())
+  productId    String?
+  variantId    String?
+  minQuantity  Int
+  maxQuantity  Int?
+  pricePerUnit Decimal   // Use @db.Numeric(10,2) if precision matters
+
+  product      Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant      Variant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([productId, minQuantity])
+  @@index([variantId, minQuantity])
+  // Application-side guard: either productId XOR variantId
+}
+
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String
+  orderItems      OrderItem[]
+  totalQuantity   Int         // Total quantity across all items
+  bookingAmount   Decimal     // Amount paid during booking
+  finalAmount     Decimal?    // Final amount calculated when admin updates prices
+  remainingAmount Decimal?    // Remaining amount to be paid
+  transactionId   String      // Razorpay Transaction Id
+  status          OrderStatus @default(BOOKED)
+  
+  // Relations
+  user            User        @relation(fields: [userId], references: [id])
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([transactionId])
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  productId       String?  // For products without variants
+  variantId       String?  // For product variants
+  quantity        Int
+  bookingPrice    Decimal  // Price at the time of booking
+  finalPrice      Decimal? // Final price set by admin (for remaining payment calculation)
+  
+  // Relations
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [productId], references: [id])
+  variant         Variant? @relation(fields: [variantId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}

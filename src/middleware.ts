@@ -17,7 +17,7 @@ export default clerkMiddleware(async (auth, req) => {
     const url = new URL("/", req.url);
     return NextResponse.redirect(url);
   }
-  if (isSalesRoute(req) && userRole !== "sales") {
+  if (isSalesRoute(req) && userRole != "sales") {
     const url = new URL("/", req.url);
     return NextResponse.redirect(url);
   }

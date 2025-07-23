@@ -5,21 +5,35 @@
 import { useState } from "react";
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "../ui/button";
 import { LayoutDashboard, Menu, ShoppingBag, UserCheck, X } from "lucide-react";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { sessionClaims } = useAuth();
+
+  // Get user role from session claims
+  const userRole = sessionClaims?.metadata?.role || "user";
+
+  // Determine dashboard URL based on role
+  const getDashboardUrl = () => {
+    switch (userRole) {
+      case "admin":
+        return "/admin/products";
+      case "sales":
+        return "/sales";
+      case "user":
+      default:
+        return "/orders";
+    }
+  };
+
+  const dashboardUrl = getDashboardUrl();
 
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        {/*
-          KEY CHANGE:
-          - Removed the `container` class.
-          - Added `w-full` to ensure it fills the header.
-          - Added responsive horizontal padding: `px-4` on small screens, `sm:px-6` on small-and-up, `lg:px-8` on large-and-up.
-        */}
         <div className="flex h-16 items-center justify-between w-full px-4 sm:px-6 lg:px-8">
           {/* Logo and Brand Name */}
           <Link
@@ -35,7 +49,7 @@ export default function Navbar() {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
             <Link
-              href="/products" // Updated this based on your last code snippet
+              href="/products"
               className="text-foreground transition-colors hover:text-foreground/80"
             >
               <span className="flex gap-1 items-center">
@@ -45,11 +59,15 @@ export default function Navbar() {
             </Link>
             <SignedIn>
               <Link
-                href="/dashboard"
+                href={dashboardUrl}
                 className="text-foreground/60 transition-colors hover:text-foreground/80"
               >
                 <Button variant="outline" className="text-green-600">
-                  Dashboard
+                  {userRole === "admin"
+                    ? "Admin Panel"
+                    : userRole === "sales"
+                    ? "Sales Panel"
+                    : "Dashboard"}
                 </Button>
               </Link>
             </SignedIn>
@@ -96,13 +114,17 @@ export default function Navbar() {
             </Link>
             <SignedIn>
               <Link
-                href="/dashboard"
+                href={dashboardUrl}
                 className="text-lg font-medium"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <span className="flex gap-3 items-center">
                   <LayoutDashboard className="text-green-600" size={15} />
-                  Dashboard
+                  {userRole === "admin"
+                    ? "Admin Panel"
+                    : userRole === "sales"
+                    ? "Sales Panel"
+                    : "Orders"}
                 </span>
               </Link>
             </SignedIn>
