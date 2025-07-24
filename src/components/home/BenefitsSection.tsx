@@ -29,8 +29,8 @@ const benefits = [
   {
     icon: Clock,
     title: "Fast Delivery",
-    description: "Quick delivery directly to your campus within 24-48 hours",
-    stat: "24h delivery",
+    description: "Fast delivery directly to your campus within 7 days",
+    stat: "1 Week delivery",
   },
   {
     icon: Shield,
