@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Package, Eye, ArrowRight } from "lucide-react";
+import { Search, Package, Eye, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -44,6 +44,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [sortLoading, setSortLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
@@ -53,7 +54,9 @@ export default function ProductsPage() {
   const fetchProducts = async (
     searchQuery?: string,
     sortBy: string = "newest",
-    pageNum: number = 1
+    pageNum: number = 1,
+    isSearching = false,
+    isSorting = false
   ) => {
     try {
       const queryParams = new URLSearchParams({
@@ -80,19 +83,29 @@ export default function ProductsPage() {
       toast.error("Failed to load products");
     } finally {
       setLoading(false);
-      setSearchLoading(false);
+      if (isSearching) setSearchLoading(false);
+      if (isSorting) setSortLoading(false);
     }
   };
 
   useEffect(() => {
     fetchProducts(search, sort, page);
-  }, [page, sort]);
+  }, [page]);
+
+  // Handle sort changes
+  useEffect(() => {
+    if (isLoaded && sort !== "newest") {
+      setSortLoading(true);
+      setPage(1);
+      fetchProducts(search, sort, 1, false, true);
+    }
+  }, [sort]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setSearchLoading(true);
     setPage(1);
-    await fetchProducts(search, sort, 1);
+    await fetchProducts(search, sort, 1, true, false);
   };
 
   const handleViewDetails = (productId: string) => {
@@ -130,24 +143,43 @@ export default function ProductsPage() {
                 />
                 {searchLoading && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                    <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
                   </div>
                 )}
               </div>
             </form>
 
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="price_low">Price: Low to High</SelectItem>
-                <SelectItem value="price_high">Price: High to Low</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Select
+                value={sort}
+                onValueChange={setSort}
+                disabled={sortLoading}
+              >
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="price_low">Price: Low to High</SelectItem>
+                  <SelectItem value="price_high">Price: High to Low</SelectItem>
+                </SelectContent>
+              </Select>
+              {sortLoading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 animate-spin" />
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Loading overlay for sorting/searching */}
+        {(searchLoading || sortLoading) && (
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/50 z-10 rounded-lg" />
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+            </div>
+          </div>
+        )}
 
         {/* Products Grid */}
         {products.length === 0 ? (
@@ -163,7 +195,11 @@ export default function ProductsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div
+            className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 ${
+              searchLoading || sortLoading ? "opacity-50" : ""
+            }`}
+          >
             {products.map((product) => {
               // Use first variant if available, otherwise product data
               const selectedVariant = product.hasVariants

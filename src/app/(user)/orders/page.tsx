@@ -11,6 +11,7 @@ import {
   CreditCard,
   Filter,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,7 +85,8 @@ export default function OrdersPage() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all"); // Changed from ""
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
 
@@ -96,16 +98,24 @@ export default function OrdersPage() {
       }
       fetchOrders();
     }
-  }, [userId, isLoaded, statusFilter, page]);
+  }, [userId, isLoaded, page]);
 
-  const fetchOrders = async () => {
+  // Separate effect for filter changes
+  useEffect(() => {
+    if (isLoaded && userId) {
+      setFilterLoading(true);
+      setPage(1);
+      fetchOrders(true);
+    }
+  }, [statusFilter]);
+
+  const fetchOrders = async (isFiltering = false) => {
     try {
       const queryParams = new URLSearchParams({
         page: page.toString(),
         limit: "10",
       });
 
-      // Only append status if it's not "all"
       if (statusFilter && statusFilter !== "all") {
         queryParams.append("status", statusFilter);
       }
@@ -124,6 +134,9 @@ export default function OrdersPage() {
       toast.error("Failed to load orders");
     } finally {
       setLoading(false);
+      if (isFiltering) {
+        setFilterLoading(false);
+      }
     }
   };
 
@@ -188,23 +201,38 @@ export default function OrdersPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-4">
             <Filter className="w-5 h-5 text-gray-500" />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Orders</SelectItem>
-                <SelectItem value="BOOKED">Booked</SelectItem>
-                <SelectItem value="DELIVERED">Delivered</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                <SelectItem value="REFUNDED">Refunded</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Orders</SelectItem>
+                  <SelectItem value="BOOKED">Booked</SelectItem>
+                  <SelectItem value="DELIVERED">Delivered</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  <SelectItem value="REFUNDED">Refunded</SelectItem>
+                </SelectContent>
+              </Select>
+              {filterLoading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 animate-spin" />
+              )}
+            </div>
           </div>
         </div>
 
+        {/* Loading overlay for filtering */}
+        {filterLoading && (
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/50 z-10 rounded-lg" />
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+            </div>
+          </div>
+        )}
+
         {/* Orders List */}
-        <div className="space-y-4">
+        <div className={`space-y-4 ${filterLoading ? "opacity-50" : ""}`}>
           {orders.map((order) => (
             <Card
               key={order.id}
@@ -322,6 +350,22 @@ export default function OrdersPage() {
             </Card>
           ))}
         </div>
+
+        {/* No results for filtered search */}
+        {orders.length === 0 && statusFilter !== "all" && !filterLoading && (
+          <div className="text-center py-16">
+            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No orders found
+            </h3>
+            <p className="text-gray-500 mb-4">
+              No orders match the selected status filter.
+            </p>
+            <Button variant="outline" onClick={() => setStatusFilter("all")}>
+              Show All Orders
+            </Button>
+          </div>
+        )}
 
         {/* Pagination */}
         {pagination && pagination.pages > 1 && (

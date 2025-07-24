@@ -12,6 +12,7 @@ import {
   Minus,
   Trash2,
   CreditCard,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   useEffect(() => {
     if (isLoaded) {
@@ -111,8 +113,33 @@ export default function CartPage() {
     }
   };
 
+  const handlePaymentSuccess = () => {
+    setPaymentProcessing(true);
+    setShowPayment(false);
+
+    // Show loading for 2 seconds before redirecting
+    setTimeout(() => {
+      router.push("/orders");
+    }, 2000);
+  };
+
   if (!isLoaded || loading) {
     return <LoadingPage />;
+  }
+
+  // Payment processing overlay
+  if (paymentProcessing) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-green-600 animate-spin mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Payment Successful!
+          </h2>
+          <p className="text-gray-600">Redirecting to your orders...</p>
+        </div>
+      </div>
+    );
   }
 
   const cartTotals = calculateCartTotals(cartItems);
@@ -163,7 +190,7 @@ export default function CartPage() {
               const isUpdating = updating === item.id;
 
               return (
-                <Card key={item.id}>
+                <Card key={item.id} className="relative">
                   <CardContent className="p-6">
                     <div className="flex gap-4">
                       {/* Product Image */}
@@ -254,8 +281,8 @@ export default function CartPage() {
                     </div>
 
                     {isUpdating && (
-                      <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-                        <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                      <div className="absolute inset-0 bg-white/50 flex items-center justify-center rounded-lg">
+                        <Loader2 className="w-6 h-6 text-green-600 animate-spin" />
                       </div>
                     )}
                   </CardContent>
@@ -322,16 +349,14 @@ export default function CartPage() {
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal with higher z-index */}
       {showPayment && (
         <PaymentModal
           isOpen={showPayment}
           onClose={() => setShowPayment(false)}
           totalAmount={cartTotals.totalBookingAmount}
-          onSuccess={() => {
-            setShowPayment(false);
-            router.push("/orders");
-          }}
+          onSuccess={handlePaymentSuccess}
+          // Higher z-index
         />
       )}
     </div>
