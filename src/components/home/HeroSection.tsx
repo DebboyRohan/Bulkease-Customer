@@ -85,13 +85,13 @@ export default function HeroSection() {
                 </Link>
               </Button>
 
-              <Button
+              {/* <Button
                 variant="outline"
                 size="lg"
                 className="border-2 border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white px-8 py-6 text-lg font-medium rounded-lg transition-all duration-200"
               >
                 How It Works
-              </Button>
+              </Button> */}
             </motion.div>
 
             {/* Stats */}
@@ -114,7 +114,7 @@ export default function HeroSection() {
                 </div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-gray-900">24h</div>
+                <div className="text-3xl font-bold text-gray-900">7d</div>
                 <div className="text-sm text-gray-500 font-medium">
                   Fast Delivery
                 </div>
@@ -211,27 +211,6 @@ export default function HeroSection() {
             </div>
           </motion.div>
         </div>
-
-        {/* Scroll Indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5 }}
-          className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-center"
-        >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="w-5 h-8 border-2 border-gray-400 rounded-full flex justify-center mx-auto"
-          >
-            <motion.div
-              animate={{ y: [0, 8, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="w-1 h-2 bg-gray-400 rounded-full mt-2"
-            />
-          </motion.div>
-          <p className="text-xs text-gray-500 mt-2">Scroll to explore</p>
-        </motion.div>
       </div>
     </section>
   );
