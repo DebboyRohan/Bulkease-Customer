@@ -2,28 +2,96 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createProductAdmin, getAllProductsAdmin } from "@/lib/db/products";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    const { sessionClaims } = await auth();
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     // Check if user is admin
-    if (sessionClaims?.metadata?.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    if (user?.role !== "admin") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const search = searchParams.get("search") || undefined;
-    const sort = searchParams.get("sort") || "newest";
+    const search = searchParams.get("search") || "";
+    const statusFilter = searchParams.get("status") || "all"; // all, active, inactive
 
-    const result = await getAllProductsAdmin(page, limit, search, sort);
+    const offset = (page - 1) * limit;
 
-    return NextResponse.json(result);
+    // Build where clause for admin (can see all products)
+    const whereClause: any = {
+      AND: [],
+    };
+
+    if (search) {
+      whereClause.AND.push({
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+        ],
+      });
+    }
+
+    // Add status filter
+    if (statusFilter === "active") {
+      whereClause.AND.push({ isActive: true });
+    } else if (statusFilter === "inactive") {
+      whereClause.AND.push({ isActive: false });
+    }
+
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where: whereClause.AND.length > 0 ? whereClause : {},
+        include: {
+          variants: {
+            include: {
+              priceRanges: { orderBy: { minQuantity: "asc" } },
+            },
+          },
+          priceRanges: { orderBy: { minQuantity: "asc" } },
+          _count: {
+            select: {
+              orderItems: true,
+              cartItems: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.product.count({
+        where: whereClause.AND.length > 0 ? whereClause : {},
+      }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return NextResponse.json({
+      products,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        pages: totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    });
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.error("Error fetching admin products:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -33,111 +101,85 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { sessionClaims } = await auth();
+    const { userId } = await auth();
 
-    if (sessionClaims?.metadata?.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const data = await request.json();
-    console.log("Received data:", data);
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
 
-    // Basic validation
-    if (!data.name) {
-      return NextResponse.json(
-        { error: "Product name is required" },
-        { status: 400 }
-      );
+    if (user?.role !== "admin") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Schema-specific validation
-    if (data.hasVariants) {
-      // For products with variants
-      if (data.bookingAmount !== null && data.bookingAmount !== undefined) {
-        return NextResponse.json(
-          { error: "Products with variants should not have a booking amount" },
-          { status: 400 }
-        );
-      }
+    const body = await request.json();
+    const {
+      name,
+      description,
+      hasVariants,
+      images,
+      bookingAmount,
+      variants,
+      priceRanges,
+      isActive = true, // Default to true if not provided
+    } = body;
 
-      if (!data.variants || data.variants.length === 0) {
-        return NextResponse.json(
-          { error: "Products with variants must have at least one variant" },
-          { status: 400 }
-        );
-      }
+    // Create product in transaction
+    const product = await prisma.$transaction(async (tx) => {
+      const createdProduct = await tx.product.create({
+        data: {
+          name,
+          description,
+          hasVariants,
+          images: hasVariants ? [] : images,
+          bookingAmount: hasVariants ? null : bookingAmount,
+          isActive,
+        },
+      });
 
-      // Validate each variant
-      for (let i = 0; i < data.variants.length; i++) {
-        const variant = data.variants[i];
-        if (!variant.name) {
-          return NextResponse.json(
-            { error: `Variant ${i + 1} name is required` },
-            { status: 400 }
-          );
-        }
-        if (!variant.bookingAmount || variant.bookingAmount <= 0) {
-          return NextResponse.json(
-            {
-              error: `Variant ${
-                i + 1
-              } booking amount is required and must be greater than 0`,
+      if (hasVariants && variants) {
+        // Create variants with their price ranges
+        for (const variant of variants) {
+          await tx.variant.create({
+            data: {
+              name: variant.name,
+              bookingAmount: variant.bookingAmount,
+              images: variant.images || [],
+              isActive: variant.isActive ?? true, // Default to true if not provided
+              productId: createdProduct.id,
+              priceRanges: {
+                create: variant.priceRanges.map((pr: any) => ({
+                  minQuantity: pr.minQuantity,
+                  maxQuantity: pr.maxQuantity,
+                  pricePerUnit: pr.pricePerUnit,
+                })),
+              },
             },
-            { status: 400 }
-          );
+          });
         }
-        if (!variant.priceRanges || variant.priceRanges.length === 0) {
-          return NextResponse.json(
-            { error: `Variant ${i + 1} must have at least one price range` },
-            { status: 400 }
-          );
-        }
-      }
-    } else {
-      // For products without variants
-      if (!data.bookingAmount || data.bookingAmount <= 0) {
-        return NextResponse.json(
-          { error: "Booking amount is required for products without variants" },
-          { status: 400 }
-        );
+      } else if (priceRanges) {
+        // Create product price ranges
+        await tx.priceRange.createMany({
+          data: priceRanges.map((pr: any) => ({
+            minQuantity: pr.minQuantity,
+            maxQuantity: pr.maxQuantity,
+            pricePerUnit: pr.pricePerUnit,
+            productId: createdProduct.id,
+          })),
+        });
       }
 
-      if (!data.priceRanges || data.priceRanges.length === 0) {
-        return NextResponse.json(
-          {
-            error:
-              "Products without variants must have at least one price range",
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    const product = await createProductAdmin(data);
+      return createdProduct;
+    });
 
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error("Error creating product:", error);
-
-    // Handle specific database errors
-    if (error instanceof Error) {
-      if (error.message.includes("Unique constraint")) {
-        return NextResponse.json(
-          { error: "A product with this name already exists" },
-          { status: 409 }
-        );
-      }
-
-      // Return the specific error message for validation errors
-      if (
-        error.message.includes("Products with variants") ||
-        error.message.includes("Products without variants") ||
-        error.message.includes("must have")
-      ) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-      }
-    }
-
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

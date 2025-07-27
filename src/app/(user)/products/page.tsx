@@ -45,6 +45,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [sortLoading, setSortLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false); // New loading state for pagination
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
@@ -56,7 +57,8 @@ export default function ProductsPage() {
     sortBy: string = "newest",
     pageNum: number = 1,
     isSearching = false,
-    isSorting = false
+    isSorting = false,
+    isPaginating = false // New parameter for pagination loading
   ) => {
     try {
       const queryParams = new URLSearchParams({
@@ -85,11 +87,22 @@ export default function ProductsPage() {
       setLoading(false);
       if (isSearching) setSearchLoading(false);
       if (isSorting) setSortLoading(false);
+      if (isPaginating) setPageLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts(search, sort, page);
+    if (isLoaded) {
+      fetchProducts(search, sort, page);
+    }
+  }, [isLoaded]);
+
+  // Handle page changes with loading
+  useEffect(() => {
+    if (isLoaded && page > 1) {
+      setPageLoading(true);
+      fetchProducts(search, sort, page, false, false, true);
+    }
   }, [page]);
 
   // Handle sort changes
@@ -110,6 +123,11 @@ export default function ProductsPage() {
 
   const handleViewDetails = (productId: string) => {
     router.push(`/products/${productId}`);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPageLoading(true);
+    setPage(newPage);
   };
 
   if (!isLoaded || loading) {
@@ -171,12 +189,19 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {/* Loading overlay for sorting/searching */}
-        {(searchLoading || sortLoading) && (
+        {/* Loading overlay for sorting/searching/pagination */}
+        {(searchLoading || sortLoading || pageLoading) && (
           <div className="relative">
             <div className="absolute inset-0 bg-white/50 z-10 rounded-lg" />
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
-              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 text-green-600 animate-spin mx-auto mb-2" />
+                <p className="text-sm text-gray-600">
+                  {searchLoading && "Searching products..."}
+                  {sortLoading && "Sorting products..."}
+                  {pageLoading && "Loading page..."}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -196,8 +221,8 @@ export default function ProductsPage() {
           </div>
         ) : (
           <div
-            className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 ${
-              searchLoading || sortLoading ? "opacity-50" : ""
+            className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 transition-opacity duration-200 ${
+              searchLoading || sortLoading || pageLoading ? "opacity-50" : ""
             }`}
           >
             {products.map((product) => {
@@ -326,6 +351,7 @@ export default function ProductsPage() {
                     <Button
                       onClick={() => handleViewDetails(product.id)}
                       className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium"
+                      disabled={pageLoading} // Disable buttons during pagination loading
                     >
                       View Details & Order
                       <ArrowRight className="w-4 h-4 ml-2" />
@@ -337,15 +363,18 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination with loading states */}
         {pagination && pagination.pages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-12">
             <Button
               variant="outline"
-              onClick={() => setPage(page - 1)}
-              disabled={page <= 1}
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1 || pageLoading}
               className="px-6"
             >
+              {pageLoading && page > 1 ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
               Previous
             </Button>
 
@@ -357,12 +386,17 @@ export default function ProductsPage() {
                     key={pageNum}
                     variant={pageNum === page ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setPage(pageNum)}
+                    onClick={() => handlePageChange(pageNum)}
+                    disabled={pageLoading}
                     className={
                       pageNum === page ? "bg-green-600 hover:bg-green-700" : ""
                     }
                   >
-                    {pageNum}
+                    {pageLoading && pageNum === page ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      pageNum
+                    )}
                   </Button>
                 );
               })}
@@ -370,10 +404,13 @@ export default function ProductsPage() {
 
             <Button
               variant="outline"
-              onClick={() => setPage(page + 1)}
-              disabled={page >= pagination.pages}
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= pagination.pages || pageLoading}
               className="px-6"
             >
+              {pageLoading && page < pagination.pages ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
               Next
             </Button>
           </div>

@@ -30,7 +30,7 @@ import LoadingPage from "@/components/LoadingPage";
 import { toast } from "sonner";
 import Image from "next/image";
 
-// Validation schemas
+// Fixed validation schemas
 const priceRangeSchema = z.object({
   minQuantity: z.number().min(1, "Minimum quantity must be at least 1"),
   maxQuantity: z.number().nullable().optional(),
@@ -40,7 +40,8 @@ const priceRangeSchema = z.object({
 const variantSchema = z.object({
   name: z.string().min(1, "Variant name is required"),
   bookingAmount: z.number().min(0.01, "Booking amount must be greater than 0"),
-  images: z.array(z.string()),
+  images: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
   priceRanges: z
     .array(priceRangeSchema)
     .min(1, "At least one price range is required"),
@@ -53,11 +54,12 @@ const productSchema = z
       .min(1, "Product name is required")
       .max(255, "Name is too long"),
     description: z.string().optional(),
-    images: z.array(z.string()),
+    images: z.array(z.string()).default([]),
     bookingAmount: z.number().nullable().optional(),
-    hasVariants: z.boolean(),
-    variants: z.array(variantSchema).optional(),
-    priceRanges: z.array(priceRangeSchema).optional(),
+    hasVariants: z.boolean().default(false),
+    isActive: z.boolean().default(true),
+    variants: z.array(variantSchema).optional().default([]),
+    priceRanges: z.array(priceRangeSchema).optional().default([]),
   })
   .superRefine((data, ctx) => {
     if (data.hasVariants) {
@@ -68,6 +70,24 @@ const productSchema = z
           path: ["variants"],
         });
       }
+
+      // Validate each variant
+      data.variants?.forEach((variant, index) => {
+        if (!variant.name.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Variant ${index + 1} name is required`,
+            path: ["variants", index, "name"],
+          });
+        }
+        if (!variant.priceRanges || variant.priceRanges.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Variant ${index + 1} must have at least one price range`,
+            path: ["variants", index, "priceRanges"],
+          });
+        }
+      });
     } else {
       if (!data.bookingAmount || data.bookingAmount <= 0) {
         ctx.addIssue({
@@ -126,6 +146,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     resolver: zodResolver(productSchema),
     defaultValues: {
       hasVariants: false,
+      isActive: true,
       variants: [],
       priceRanges: [],
       name: "",
@@ -166,7 +187,9 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   });
 
   const hasVariants = watch("hasVariants");
+  const isActive = watch("isActive");
 
+  // Fixed fetchProduct function
   const fetchProduct = async () => {
     try {
       const response = await fetch(`/api/admin/products/${productId}`);
@@ -174,23 +197,26 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       if (response.ok) {
         const product = await response.json();
 
-        // Reset form with product data
-        reset({
+        // Ensure images arrays are properly handled
+        const formData = {
           name: product.name,
           description: product.description || "",
           hasVariants: product.hasVariants,
+          isActive: product.isActive ?? true, // Fallback to true if undefined
           images: product.images || [],
           bookingAmount: product.bookingAmount,
           variants:
             product.variants?.map((variant: any) => ({
               name: variant.name,
               bookingAmount: variant.bookingAmount,
+              isActive: variant.isActive ?? true, // Fallback to true if undefined
               images: variant.images || [],
-              priceRanges: variant.priceRanges.map((pr: any) => ({
-                minQuantity: pr.minQuantity,
-                maxQuantity: pr.maxQuantity,
-                pricePerUnit: pr.pricePerUnit,
-              })),
+              priceRanges:
+                variant.priceRanges?.map((pr: any) => ({
+                  minQuantity: pr.minQuantity,
+                  maxQuantity: pr.maxQuantity,
+                  pricePerUnit: pr.pricePerUnit,
+                })) || [],
             })) || [],
           priceRanges:
             product.priceRanges?.map((pr: any) => ({
@@ -198,34 +224,41 @@ export default function EditProductPage({ params }: EditProductPageProps) {
               maxQuantity: pr.maxQuantity,
               pricePerUnit: pr.pricePerUnit,
             })) || [],
-        });
+        };
 
+        // Reset form with validated data
+        reset(formData);
         setProductImageUrls(product.images || []);
+
+        console.log("Loaded product data:", formData); // Add for debugging
       } else if (response.status === 404) {
         toast.error("Product not found");
         router.push("/admin/products");
       } else {
-        toast.error("Failed to load product");
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to load product");
       }
     } catch (error) {
-      console.error("Error fetching product:", error);
+      console.error("Fetch Error:", error);
       toast.error("Failed to load product");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle variants toggle
+  // Fixed hasVariants toggle useEffect
   useEffect(() => {
     if (hasVariants) {
       setValue("priceRanges", []);
       setValue("bookingAmount", null);
       clearErrors(["priceRanges", "bookingAmount"]);
 
+      // Only add variant if switching from non-variants to variants AND no variants exist
       if (variantFields.length === 0) {
         appendVariant({
           name: "",
           bookingAmount: 0,
+          isActive: true,
           images: [],
           priceRanges: [{ minQuantity: 1, maxQuantity: null, pricePerUnit: 0 }],
         });
@@ -234,6 +267,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       setValue("variants", []);
       clearErrors("variants");
 
+      // Only add price range if switching from variants to non-variants AND no price ranges exist
       if (priceRangeFields.length === 0) {
         appendPriceRange({
           minQuantity: 1,
@@ -242,15 +276,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         });
       }
     }
-  }, [
-    hasVariants,
-    appendVariant,
-    appendPriceRange,
-    setValue,
-    clearErrors,
-    variantFields.length,
-    priceRangeFields.length,
-  ]);
+  }, [hasVariants]); // Remove the dependencies that cause infinite loops
 
   const addProductImage = () => {
     const url = prompt("Enter image URL:");
@@ -282,20 +308,62 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     setValue(`variants.${variantIndex}.images`, newImages);
   };
 
+  // Fixed onSubmit function
   const onSubmit = async (data: ProductFormData) => {
     setSaving(true);
 
     try {
+      // Validate required fields before submission
+      if (data.hasVariants) {
+        if (!data.variants || data.variants.length === 0) {
+          toast.error(
+            "At least one variant is required when variants are enabled"
+          );
+          setSaving(false);
+          return;
+        }
+
+        // Check if all variants have valid data
+        for (let i = 0; i < data.variants.length; i++) {
+          const variant = data.variants[i];
+          if (!variant.name.trim()) {
+            toast.error(`Variant ${i + 1} name is required`);
+            setSaving(false);
+            return;
+          }
+          if (!variant.priceRanges || variant.priceRanges.length === 0) {
+            toast.error(`Variant ${i + 1} must have at least one price range`);
+            setSaving(false);
+            return;
+          }
+        }
+      } else {
+        if (!data.bookingAmount || data.bookingAmount <= 0) {
+          toast.error(
+            "Booking amount is required for products without variants"
+          );
+          setSaving(false);
+          return;
+        }
+        if (!data.priceRanges || data.priceRanges.length === 0) {
+          toast.error("At least one price range is required");
+          setSaving(false);
+          return;
+        }
+      }
+
       const payload = {
         name: data.name.trim(),
         description: data.description?.trim() || "",
         hasVariants: data.hasVariants,
+        isActive: data.isActive,
         images: data.hasVariants ? [] : productImageUrls,
         bookingAmount: data.hasVariants ? null : data.bookingAmount,
         variants: data.hasVariants
           ? data.variants?.map((variant) => ({
               name: variant.name.trim(),
               bookingAmount: variant.bookingAmount,
+              isActive: variant.isActive,
               images: variant.images || [],
               priceRanges: variant.priceRanges.map((pr) => ({
                 minQuantity: pr.minQuantity,
@@ -315,6 +383,8 @@ export default function EditProductPage({ params }: EditProductPageProps) {
           : undefined,
       };
 
+      console.log("Submitting payload:", payload); // Add for debugging
+
       const response = await fetch(`/api/admin/products/${productId}`, {
         method: "PUT",
         headers: {
@@ -324,13 +394,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       });
 
       if (response.ok) {
+        const updatedProduct = await response.json();
         toast.success("Product updated successfully!");
-        router.push("/admin/products");
+
+        // Reset form to clear dirty state
+        reset(data);
+
+        // Navigate back after a short delay
+        setTimeout(() => {
+          router.push("/admin/products");
+        }, 1000);
       } else {
         const errorData = await response.json();
+        console.error("API Error:", errorData); // Add for debugging
         toast.error(errorData.error || "Failed to update product");
       }
     } catch (error) {
+      console.error("Submit Error:", error); // Add for debugging
       toast.error(
         error instanceof Error ? error.message : "Failed to update product"
       );
@@ -531,6 +611,39 @@ export default function EditProductPage({ params }: EditProductPageProps) {
                 />
               </div>
 
+              {/* Product Status */}
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="space-y-1">
+                  <Label htmlFor="isActive" className="text-base font-medium">
+                    Product Status
+                  </Label>
+                  <p className="text-sm text-gray-600">
+                    Only active products are visible to customers
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-sm font-medium ${
+                      isActive ? "text-green-600" : "text-gray-500"
+                    }`}
+                  >
+                    {isActive ? "Active" : "Inactive"}
+                  </span>
+                  <Controller
+                    name="isActive"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch
+                        id="isActive"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Product Variants Toggle */}
               <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
                 <div className="space-y-1">
                   <Label
@@ -699,6 +812,34 @@ export default function EditProductPage({ params }: EditProductPageProps) {
                           </div>
                         </div>
 
+                        {/* Variant Status */}
+                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                          <Label className="text-sm font-medium">
+                            Variant Status
+                          </Label>
+                          <Controller
+                            name={`variants.${variantIndex}.isActive`}
+                            control={control}
+                            render={({ field }) => (
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-sm ${
+                                    field.value
+                                      ? "text-green-600"
+                                      : "text-gray-500"
+                                  }`}
+                                >
+                                  {field.value ? "Active" : "Inactive"}
+                                </span>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </div>
+                            )}
+                          />
+                        </div>
+
                         {/* Variant Images */}
                         <div>
                           <Label className="text-base font-medium mb-3 block">
@@ -776,6 +917,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
                       appendVariant({
                         name: "",
                         bookingAmount: 0,
+                        isActive: true,
                         images: [],
                         priceRanges: [
                           {

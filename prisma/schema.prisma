@@ -108,9 +108,10 @@ model Product {
   id            String    @id @default(uuid())
   name          String    @unique
   description   String?
-  images        String[]         // No need for ? since it's an array (can be empty)
+  images        String[]
   bookingAmount Decimal?         // Nullable; required if hasVariants = false
   hasVariants   Boolean   @default(false)
+  isActive      Boolean   @default(true)  // New field for controlling visibility
 
   variants      Variant[]
   priceRanges   PriceRange[]     // Only used when hasVariants = false
@@ -121,14 +122,16 @@ model Product {
   updatedAt     DateTime  @updatedAt
 
   @@index([name])
+  @@index([isActive])  // Index for efficient filtering
 }
 
 model Variant {
   id            String    @id @default(uuid())
   productId     String
   name          String
-  images        String[]          // Arrays can be empty, no need for nullable
-  bookingAmount Decimal           // Always required
+  images        String[]
+  bookingAmount Decimal
+  isActive      Boolean   @default(true)  // New field for controlling visibility
   priceRanges   PriceRange[]
   cartItems     CartItem[]
   orderItems    OrderItem[]
@@ -140,8 +143,8 @@ model Variant {
 
   @@unique([productId, name])
   @@index([productId])
+  @@index([isActive])  // Index for efficient filtering
 }
-
 
 model PriceRange {
   id           String   @id @default(uuid())
@@ -149,7 +152,7 @@ model PriceRange {
   variantId    String?
   minQuantity  Int
   maxQuantity  Int?
-  pricePerUnit Decimal   // Use @db.Numeric(10,2) if precision matters
+  pricePerUnit Decimal
 
   product      Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant      Variant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -159,9 +162,7 @@ model PriceRange {
 
   @@index([productId, minQuantity])
   @@index([variantId, minQuantity])
-  // Application-side guard: either productId XOR variantId
 }
-
 
 model Order {
   id              String      @id @default(uuid())
