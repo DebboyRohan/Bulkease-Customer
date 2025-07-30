@@ -87,9 +87,17 @@ export default function ProductDetailClient({
       const productData: Product = await response.json();
       setProduct(productData);
 
-      // Set default variant if product has variants
-      if (productData.hasVariants && productData.variants.length > 0) {
-        setSelectedVariant(productData.variants[0].id);
+      // Set default variant if product has variants and has active variants
+      if (
+        productData.hasVariants &&
+        productData.variants &&
+        productData.variants.length > 0
+      ) {
+        // Find the first active variant, or fallback to first variant
+        const activeVariant =
+          productData.variants.find((v) => v.isActive !== false) ||
+          productData.variants[0];
+        setSelectedVariant(activeVariant.id);
       }
     } catch (error) {
       console.error("Error fetching product:", error);
@@ -123,7 +131,7 @@ export default function ProductDetailClient({
 
   const getSelectedVariantData = (): Variant | undefined => {
     if (!product?.hasVariants || !selectedVariant) return undefined;
-    return product.variants.find((v) => v.id === selectedVariant);
+    return product.variants?.find((v) => v.id === selectedVariant);
   };
 
   const handleAddToCart = async () => {
@@ -224,6 +232,9 @@ export default function ProductDetailClient({
   const totalCurrentPrice = currentPricePerUnit * quantity;
   const remainingAmount = totalCurrentPrice - totalBookingAmount;
 
+  // Safe access to order count with fallback
+  const orderCount = product._count?.orderItems ?? 0;
+
   // Determine button state and text
   const getButtonState = () => {
     if (addingToCart)
@@ -323,11 +334,11 @@ export default function ProductDetailClient({
                 <div className="flex items-center gap-2">
                   <Star className="w-4 h-4 text-yellow-400 fill-current" />
                   <span className="text-sm text-gray-600">
-                    {product._count.orderItems} orders placed
+                    {orderCount} orders placed
                   </span>
                 </div>
 
-                {product.hasVariants && (
+                {product.hasVariants && product.variants && (
                   <Badge variant="secondary">
                     {product.variants.length} Variants Available
                   </Badge>
@@ -344,30 +355,36 @@ export default function ProductDetailClient({
             <Separator />
 
             {/* Variants Selection */}
-            {product.hasVariants && (
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Select Variant:</Label>
-                <Select
-                  value={selectedVariant}
-                  onValueChange={(value) => {
-                    setSelectedVariant(value);
-                    setSelectedImage(0); // Reset image selection
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a variant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {product.variants.map((variant) => (
-                      <SelectItem key={variant.id} value={variant.id}>
-                        {variant.name} - ₹{safeToFixed(variant.bookingAmount)}{" "}
-                        booking/unit
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {product.hasVariants &&
+              product.variants &&
+              product.variants.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">
+                    Select Variant:
+                  </Label>
+                  <Select
+                    value={selectedVariant}
+                    onValueChange={(value) => {
+                      setSelectedVariant(value);
+                      setSelectedImage(0); // Reset image selection
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a variant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {product.variants
+                        .filter((variant) => variant.isActive !== false) // Only show active variants
+                        .map((variant) => (
+                          <SelectItem key={variant.id} value={variant.id}>
+                            {variant.name} - ₹
+                            {safeToFixed(variant.bookingAmount)} booking/unit
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
             {/* Quantity Selection */}
             <div className="space-y-3">
